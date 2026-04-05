@@ -1,48 +1,49 @@
 const nodemailer = require("nodemailer");
+const { logAuditEvent } = require("./audit-log.service");
 require("dotenv").config();
 
 /**
  * Email service for sending benefit application notifications to admin
  */
 class EmailService {
-  constructor() {
-    this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT, 10),
-      secure: process.env.EMAIL_SECURE === "true", // true for 465, false for other ports
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-  }
-
-  /**
-   * Send benefit application email to admin
-   * @param {Object} options - Email options
-   * @param {string} options.applicantName - Name of the person applying
-   * @param {string} options.benefitName - Name of the benefit being applied for
-   * @param {number} options.userId - User ID
-   * @param {number} options.applicationId - Application ID
-   * @param {Array} options.attachments - Array of file attachments
-   * @returns {Promise}
-   */
-  async sendBenefitApplicationEmail({
-    applicantName,
-    benefitName,
-    userId,
-    applicationId,
-    attachments = [],
-  }) {
-    const adminEmail = process.env.ADMIN_EMAIL;
-
-    if (!adminEmail) {
-      throw new Error("ADMIN_EMAIL not configured in environment variables");
+    constructor() {
+        this.transporter = nodemailer.createTransport({
+            host: process.env.EMAIL_HOST,
+            port: parseInt(process.env.EMAIL_PORT, 10),
+            secure: process.env.EMAIL_SECURE === "true", // true for 465, false for other ports
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
+        });
     }
 
-    const subject = `Benefit Application: ${benefitName} - ${applicantName}`;
+    /**
+     * Send benefit application email to admin
+     * @param {Object} options - Email options
+     * @param {string} options.applicantName - Name of the person applying
+     * @param {string} options.benefitName - Name of the benefit being applied for
+     * @param {number} options.userId - User ID
+     * @param {number} options.applicationId - Application ID
+     * @param {Array} options.attachments - Array of file attachments
+     * @returns {Promise}
+     */
+    async sendBenefitApplicationEmail({
+            applicantName,
+            benefitName,
+            userId,
+            applicationId,
+            attachments = [],
+        }) {
+            const adminEmail = process.env.ADMIN_EMAIL;
 
-    const htmlContent = `
+            if (!adminEmail) {
+                throw new Error("ADMIN_EMAIL not configured in environment variables");
+            }
+
+            const subject = `Benefit Application: ${benefitName} - ${applicantName}`;
+
+            const htmlContent = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -134,6 +135,21 @@ Please review the application and attached documents in the admin portal.
     try {
       const info = await this.transporter.sendMail(mailOptions);
       console.log("Email sent successfully:", info.messageId);
+
+      await logAuditEvent({
+        actionType: "system_event",
+        action: "email_sent",
+        entityType: "notification",
+        entityId: applicationId,
+        userId: userId || null,
+        details: {
+          to: adminEmail,
+          subject,
+          message_id: info.messageId,
+          attachments_count: Array.isArray(attachments) ? attachments.length : 0,
+        },
+      });
+
       return {
         success: true,
         messageId: info.messageId,

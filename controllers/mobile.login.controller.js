@@ -1,4 +1,5 @@
 const pool = require("../db.cjs");
+const { logAuditEvent } = require("../services/audit-log.service");
 
 /**
  * POST login.php
@@ -6,23 +7,24 @@ const pool = require("../db.cjs");
  * role forced to "member"
  */
 async function login(req, res) {
-  if (req.method !== "POST") {
-    return res.json({ status: "fail", message: "Invalid request method" });
-  }
+    if (req.method !== "POST") {
+        return res.json({ status: "fail", message: "Invalid request method" });
+    }
 
-  const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
-  const password = typeof req.body?.password === "string" ? req.body.password : "";
-  const role = "member";
+    const body = req.body || {};
+    const email = typeof body.email === "string" ? body.email.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    const role = "member";
 
-  if (!email || !password) {
-    return res.json({
-      status: "fail",
-      message: "Email, password, and role are required",
-    });
-  }
+    if (!email || !password) {
+        return res.json({
+            status: "fail",
+            message: "Email, password, and role are required",
+        });
+    }
 
-  try {
-    const sql = `
+    try {
+        const sql = `
       SELECT
         u.id,
         u.email,
@@ -38,29 +40,49 @@ async function login(req, res) {
       LIMIT 1
     `;
 
-    const [rows] = await pool.execute(sql, [email, password, role]);
+        const [rows] = await pool.execute(sql, [email, password, role]);
 
-    if (Array.isArray(rows) && rows.length > 0) {
-      const row = rows[0];
-      return res.json({
-        status: "success",
-        message: "Login successful",
-        user: {
-          id: Number(row.id),
-          email: row.email,
-          full_name: row.full_name,
-          role: row.role_name,
-        },
-      });
+        if (Array.isArray(rows) && rows.length > 0) {
+            const row = rows[0];
+
+            await logAuditEvent({
+                req,
+                userId: Number(row.id),
+                actionType: "login",
+                action: "member_login_success",
+                entityType: "auth",
+                entityId: Number(row.id),
+                targetUserId: Number(row.id),
+                details: { email: row.email },
+            });
+
+            return res.json({
+                status: "success",
+                message: "Login successful",
+                user: {
+                    id: Number(row.id),
+                    email: row.email,
+                    full_name: row.full_name,
+                    role: row.role_name,
+                },
+            });
+        }
+
+        await logAuditEvent({
+            req,
+            actionType: "login",
+            action: "member_login_failed",
+            entityType: "auth",
+            details: { email },
+        });
+
+        return res.json({ status: "fail", message: "Invalid credentials or role" });
+    } catch (err) {
+        return res.json({
+            status: "fail",
+            message: `Server error: ${err?.message || String(err)}`,
+        });
     }
-
-    return res.json({ status: "fail", message: "Invalid credentials or role" });
-  } catch (err) {
-    return res.json({
-      status: "fail",
-      message: `Server error: ${err?.message || String(err)}`,
-    });
-  }
 }
 
 module.exports = { login };

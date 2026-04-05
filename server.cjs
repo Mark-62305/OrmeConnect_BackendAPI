@@ -38,6 +38,10 @@ app.use("/api/benefits", require("./routes/benefits.routes.js"));
 app.use("/api/billing", require("./routes/billing.routes.js"));
 app.use("/api/announcements", require("./routes/announcements.routes.js"));
 app.use("/api/dashboard", require("./routes/dashboard.routes.js"));
+app.use("/api/reports", require("./routes/reports.routes.js"));
+app.use("/api/seminar-schedules", require("./routes/seminar_schedule.routes.js"));
+app.use("/api/notifications", require("./routes/notifications.routes.js"));
+app.use("/api/settings", require("./routes/settings.routes.js"));
 
 
 const PORT = process.env.PORT || 4000;
