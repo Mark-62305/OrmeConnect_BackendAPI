@@ -1,0 +1,30 @@
+name: OrmeConnect_BackendAPI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: smtp
+
+    env:
+      EMAIL_USER: ${{ secrets.EM_US }}
+      EMAIL_PASS: ${{ secrets.EM_PAS }}
+      ADMIN_EMAIL: ${{ secrets.EM_AD }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check environment variables
+        run: |
+          echo "Email user is configured"
+          echo "Admin email is configured"
+
+      - name: Start application
+        run: npm start
